@@ -1,10 +1,18 @@
+/**
+ * D3 Org Chart - A highly customizable organization chart library
+ * Built with D3.js, allowing for interactive, dynamic org charts
+ */
+
+// Import required D3 modules
 import { selection, select } from "d3-selection";
 import { max, min, sum, cumsum } from "d3-array";
 import { tree, stratify } from "d3-hierarchy";
 import { zoom, zoomIdentity } from "d3-zoom";
-import { flextree } from 'd3-flextree';
+import { flextree } from 'd3-flextree';  // For better tree layout with fixed-size nodes
 import { linkHorizontal } from 'd3-shape';
 
+// Create local D3 object with only the functions we need
+// This avoids pulling in the entire D3 library
 const d3 = {
     selection,
     select,
@@ -20,86 +28,98 @@ const d3 = {
     flextree
 }
 
+/**
+ * OrgChart class - Main class for creating and managing organization charts
+ * Features include:
+ * - Interactive zooming and panning
+ * - Node expansion/collapse
+ * - Multiple layout orientations (top, left, right, bottom)
+ * - Custom node rendering
+ * - Dynamic data updates
+ * - Export to PNG/SVG
+ */
 export class OrgChart {
     constructor() {
 
-        // Exposed variables  test test
+        // Initialize configuration attributes
         const attrs = {
 
-            /* NOT INTENDED FOR PUBLIC OVERRIDE */
+            /* NOT INTENDED FOR PUBLIC OVERRIDE - INTERNAL STATE PROPERTIES */
 
-            id: `ID${Math.floor(Math.random() * 1000000)}`, // Id for event handlings
-            firstDraw: true,    // Whether chart is drawn for the first time
-            ctx: document.createElement('canvas').getContext('2d'),
-            initialExpandLevel: 1,
-            nodeDefaultBackground: 'none',
-            lastTransform: { x: 0, y: 0, k: 1 },  // Panning and zooming values
-            allowedNodesCount: {},
-            zoomBehavior: null,
-            generateRoot: null,
+            id: `ID${Math.floor(Math.random() * 1000000)}`, // Unique ID for event handling and namespacing
+            firstDraw: true,    // Flag indicating if chart is being drawn for the first time
+            ctx: document.createElement('canvas').getContext('2d'), // Canvas context for text measurements
+            initialExpandLevel: 1, // Default expand level when chart first renders
+            nodeDefaultBackground: 'none', // Default background for nodes
+            lastTransform: { x: 0, y: 0, k: 1 },  // Stores last panning and zooming state
+            allowedNodesCount: {}, // For limiting visible node count
+            zoomBehavior: null, // Will store zoom behavior
+            generateRoot: null, // Will store the function to generate hierarchy from flat data
 
-            /*  INTENDED FOR PUBLIC OVERRIDE */
+            /*  INTENDED FOR PUBLIC OVERRIDE - USER CONFIGURABLE PROPERTIES */
 
-            svgWidth: 800,   // Configure svg width
-            svgHeight: window.innerHeight - 100,  // Configure svg height
-            container: "body",  // Set parent container, either CSS style selector or DOM element
-            data: null, // Set data, it must be an array of objects, where hierarchy is clearly defined via id and parent ID (property names are configurable)
-            connections: [], // Sets connection data, array of objects, SAMPLE:  [{from:"145",to:"201",label:"Conflicts of interest"}]
-            defaultFont: "Helvetica", // Set default font
-            nodeId: d => d.nodeId || d.id, // Configure accessor for node id, default is either odeId or id
-            parentNodeId: d => d.parentNodeId || d.parentId, // Configure accessor for parent node id, default is either parentNodeId or parentId
-            rootMargin: 40, // Configure how much root node is offset from top
-            nodeWidth: d3Node => 250, // Configure each node width, use with caution, it is better to have the same value set for all nodes
-            nodeHeight: d => 150,  //  Configure each node height, use with caution, it is better to have the same value set for all nodes
-            neighbourMargin: (n1, n2) => 80, // Configure margin between two nodes, use with caution, it is better to have the same value set for all nodes
-            siblingsMargin: d3Node => 20, // Configure margin between two siblings, use with caution, it is better to have the same value set for all nodes
-            childrenMargin: d => 60, // Configure margin between parent and children, use with caution, it is better to have the same value set for all nodes
-            compactMarginPair: d => 100, // Configure margin between two nodes in compact mode, use with caution, it is better to have the same value set for all nodes
-            compactMarginBetween: (d3Node => 20), // Configure margin between two nodes in compact mode, use with caution, it is better to have the same value set for all nodes
-            nodeButtonWidth: d => 40, // Configure expand & collapse button width
-            nodeButtonHeight: d => 40, // Configure expand & collapse button height
-            nodeButtonX: d => -20, // Configure expand & collapse button x position
-            nodeButtonY: d => -20,  // Configure expand & collapse button y position
-            linkYOffset: 30, // When correcting links which is not working for safari
-            pagingStep: d => 5, // Configure how many nodes to show when making new nodes appear
-            minPagingVisibleNodes: d => 2000, // Configure minimum number of visible nodes , after which paging button appears
-            scaleExtent: [0.001, 20],  // Configure zoom scale extent , if you don't want any kind of zooming, set it to [1,1]
-            duration: 400, // Configure duration of transitions
-            imageName: 'Chart', // Configure exported PNG and SVG image name
-            setActiveNodeCentered: true, // Configure if active node should be centered when expanded and collapsed
-            layout: "top",// Configure layout direction , possible values are "top", "left", "right", "bottom"
-            compact: true, // Configure if compact mode is enabled , when enabled, nodes are shown in compact positions, instead of horizontal spread
-            createZoom: d => d3.zoom(),
-            onZoomStart: e => { }, // Callback for zoom & panning start
-            onZoom: e => { }, // Callback for zoom & panning 
-            onZoomEnd: e => { }, // Callback for zoom & panning end
-            onNodeClick: (d) => d, // Callback for node click
-            onExpandOrCollapse: (d) => d, // Callback for node expand or collapse
+            svgWidth: 800,   // Width of the SVG container
+            svgHeight: window.innerHeight - 100,  // Height of the SVG container
+            container: "body",  // Parent container selector or DOM element
+            data: null, // Array of flat objects that will be converted to hierarchy
+            connections: [], // Additional connections between nodes: [{from:"145", to:"201", label:"Conflicts of interest"}]
+            defaultFont: "Helvetica", // Font family used throughout the chart
+            nodeId: d => d.nodeId || d.id, // Function to get node ID from data object
+            parentNodeId: d => d.parentNodeId || d.parentId, // Function to get parent node ID from data object
+            rootMargin: 40, // Margin/padding from the top of the container to the root node
+            nodeWidth: d3Node => 250, // Function to calculate node width (can be dynamic based on content)
+            nodeHeight: d => 150,  // Function to calculate node height (can be dynamic based on content)
+            neighbourMargin: (n1, n2) => 80, // Horizontal space between neighboring nodes
+            siblingsMargin: d3Node => 20, // Horizontal space between sibling nodes
+            childrenMargin: d => 60, // Vertical space between parent and children nodes
+            compactMarginPair: d => 100, // Space between node pairs in compact mode
+            compactMarginBetween: (d3Node => 20), // Space between nodes in compact mode
+            nodeButtonWidth: d => 40, // Width of expand/collapse button
+            nodeButtonHeight: d => 40, // Height of expand/collapse button
+            nodeButtonX: d => -20, // X position of expand/collapse button relative to node
+            nodeButtonY: d => -20,  // Y position of expand/collapse button relative to node
+            linkYOffset: 30, // Y-offset for link paths (helps with Safari rendering)
+            pagingStep: d => 5, // Number of nodes to show per page when using pagination
+            minPagingVisibleNodes: d => 2000, // Min number of nodes before pagination is activated
+            scaleExtent: [0.001, 20],  // Min/max zoom scale - use [1,1] to disable zooming
+            duration: 400, // Animation duration in milliseconds
+            imageName: 'Chart', // Default filename when exporting chart
+            setActiveNodeCentered: true, // Whether to center active node after expand/collapse
+            layout: "top", // Chart orientation - "top", "left", "right", or "bottom"
+            compact: true, // Use compact layout for more efficient space usage
+            createZoom: d => d3.zoom(), // Function to create the zoom behavior
+            onZoomStart: e => { }, // Callback triggered when zoom starts
+            onZoom: e => { }, // Callback triggered during zooming
+            onZoomEnd: e => { }, // Callback triggered when zoom ends
+            onNodeClick: (d) => d, // Callback for node click events
+            onExpandOrCollapse: (d) => d, // Callback for expand/collapse events
 
-            /*
-            * Node HTML content generation , remember that you can access some helper methods:
-
-            * node=> node.data - to access node's original data
-            * node=> node.leaves() - to access node's leaves
-            * node=> node.descendants() - to access node's descendants
-            * node=> node.children - to access node's children
-            * node=> node.parent - to access node's parent
-            * node=> node.depth - to access node's depth
-            * node=> node.hierarchyHeight - to access node's hierarchy height ( Height, which d3 assigns to hierarchy nodes)
-            * node=> node.height - to access node's height
-            * node=> node.width - to access node's width
-            * 
-            * You can also access additional properties to style your node:
-            * 
-            * d=>d.data._centeredWithDescendants - when node is centered with descendants
-            * d=>d.data._directSubordinatesPaging - subordinates count in paging mode
-            * d=>d.data._directSubordinates - subordinates count
-            * d=>d.data._totalSubordinates - total subordinates count
-            * d=>d._highlighted - when node is highlighted
-            * d=>d._upToTheRootHighlighted - when node is highlighted up to the root
-            * d=>d._expanded - when node is expanded
-            * d=>d.data._centered - when node is centered
-            */
+            /**
+             * Node HTML content generation function - defines how each node looks
+             * Available helper properties and methods:
+             * 
+             * Hierarchy properties:
+             * - node.data - Access node's original data object
+             * - node.leaves() - Get all leaf nodes descending from this node
+             * - node.descendants() - Get all nodes descending from this node
+             * - node.children - Direct children of this node (if expanded)
+             * - node._children - Direct children of this node (if collapsed)
+             * - node.parent - Parent node
+             * - node.depth - Depth in the hierarchy (0 for root)
+             * - node._hierarchyHeight - Height in hierarchy (from d3.hierarchy)
+             * - node.height - Visual height of node element
+             * - node.width - Visual width of node element
+             * 
+             * State properties (useful for styling):
+             * - d.data._centeredWithDescendants - Node is centered with its descendants
+             * - d.data._directSubordinatesPaging - Count of subordinates in paging mode
+             * - d.data._directSubordinates - Count of direct subordinates/children
+             * - d.data._totalSubordinates - Count of all subordinates (direct and indirect)
+             * - d._highlighted - Node is highlighted
+             * - d._upToTheRootHighlighted - Node and its ancestors are highlighted
+             * - d._expanded - Node is expanded
+             * - d.data._centered - Node is centered in the view
+             */
             nodeContent: d => `<div style="padding:5px;font-size:10px;">Sample Node(id=${d.id}), override using <br/> 
             <code>chart.nodeContent({data}=>{ <br/>
              &nbsp;&nbsp;&nbsp;&nbsp;return '' // Custom HTML <br/>
@@ -453,24 +473,37 @@ export class OrgChart {
 
         };
 
+        /**
+         * Returns the current chart configuration state
+         * @returns {Object} The current attributes object
+         */
         this.getChartState = () => attrs;
 
-        // Dynamically set getter and setter functions for Chart class
+        // Dynamically generate getter/setter methods for all attributes
+        // This creates a fluent/chainable API pattern
         Object.keys(attrs).forEach((key) => {
             //@ts-ignore
             this[key] = function (_) {
+                // When no arguments, act as a getter
                 if (!arguments.length) {
                     return attrs[key];
                 } else {
+                    // When argument is provided, act as a setter
                     attrs[key] = _;
                 }
+                // Return this for method chaining
                 return this;
             };
         });
 
+        // Initialize D3 enter/exit/update pattern extensions
         this.initializeEnterExitUpdatePattern();
     }
 
+    /**
+     * Extends D3's selection prototype with a patternify method
+     * This simplifies the enter/exit/update pattern by providing a more declarative API
+     */
     initializeEnterExitUpdatePattern() {
         d3.selection.prototype.patternify = function (params) {
             var container = this;
@@ -478,56 +511,86 @@ export class OrgChart {
             var elementTag = params.tag;
             var data = params.data || [selector];
 
-            // Pattern in action
+            // Implements D3's enter/exit/update pattern in a reusable way
             var selection = container.selectAll("." + selector).data(data, (d, i) => {
+                // Use id property as the join key if available
                 if (typeof d === "object") {
                     if (d.id) { return d.id; }
                 }
+                // Fall back to index if id not available
                 return i;
             });
+            
+            // Remove exiting elements
             selection.exit().remove();
+            
+            // Merge entering elements with updating elements
             selection = selection.enter().append(elementTag).merge(selection);
+            
+            // Add class to all elements
             selection.attr("class", selector);
             return selection;
         };
     }
 
-    // This method retrieves passed node's children IDs (including node)
+    /**
+     * Recursively collects all node IDs for a given node and its descendants
+     * Used to gather all nodes that should be affected by operations
+     * 
+     * @param {Object} node - The node to get children from
+     * @param {Array} nodeStore - Array to store collected node IDs
+     * @returns {Array} Array of node data objects
+     */
     getNodeChildren({ data, children, _children }, nodeStore) {
-        // Store current node ID
+        // Store current node's data
         nodeStore.push(data);
 
-        // Loop over children and recursively store descendants id (expanded nodes)
+        // Process visible/expanded children
         if (children) {
             children.forEach((d) => {
                 this.getNodeChildren(d, nodeStore);
             });
         }
 
-        // Loop over _children and recursively store descendants id (collapsed nodes)
+        // Process hidden/collapsed children
         if (_children) {
             _children.forEach((d) => {
                 this.getNodeChildren(d, nodeStore);
             });
         }
 
-        // Return result
+        // Return the collected nodes
         return nodeStore;
     }
 
-    // This method can be invoked via chart.setZoomFactor API, it zooms to particulat scale
+    /**
+     * Sets the initial zoom level of the chart
+     * Can be called before render to set initial zoom
+     * 
+     * @param {Number} zoomLevel - The zoom scale to set (1 = 100%)
+     * @returns {Object} The chart instance for method chaining
+     */
     initialZoom(zoomLevel) {
         const attrs = this.getChartState();
         attrs.lastTransform.k = zoomLevel;
         return this;
     }
 
+    /**
+     * Main rendering function that draws or updates the org chart
+     * Creates the chart structure, layouts nodes, and draws all elements
+     * 
+     * @returns {Object} The chart instance for method chaining
+     */
     render() {
-        //InnerFunctions which will update visuals
+        // Get current chart state from attributes
         const attrs = this.getChartState();
+        
+        // Handle empty data case
         if (!attrs.data || attrs.data.length == 0) {
             console.log('ORG CHART - Data is empty');
             if (attrs.container) {
+                // Clean up any existing chart elements
                 select(attrs.container).select('.nodes-wrapper').remove();
                 select(attrs.container).select('.links-wrapper').remove();
                 select(attrs.container).select('.connections-wrapper').remove();
@@ -681,27 +744,45 @@ export class OrgChart {
         return this;
     }
 
-    // This function can be invoked via chart.addNode API, and it adds node in tree at runtime
+    /**
+     * Adds a new node to the chart at runtime
+     * Handles both adding the first node and adding nodes to existing tree
+     * 
+     * @param {Object} obj - The node data object to add
+     * @returns {Object} The chart instance for method chaining
+     */
     addNode(obj) {
         const attrs = this.getChartState();
+        
+        // Special case: adding first node or root node
         if (obj && (attrs.parentNodeId(obj) == null || attrs.parentNodeId(obj) == attrs.nodeId(obj)) && attrs.data.length == 0) {
             attrs.data.push(obj);
             this.render()
             return this;
         }
+        
+        // Generate hierarchy to check existing nodes
         const root = attrs.generateRoot(attrs.data)
         const descendants = root.descendants();
+        
+        // Check if node with same ID already exists
         const nodeFound = descendants.filter(({ data }) => attrs.nodeId(data).toString() === attrs.nodeId(obj).toString())[0];
+        // Find parent node
         const parentFound = descendants.filter(({ data }) => attrs.nodeId(data).toString() === attrs.parentNodeId(obj).toString())[0];
+        
+        // Don't add if node with same ID already exists
         if (nodeFound) {
             console.log(`ORG CHART - ADD - Node with id "${attrs.nodeId(obj)}" already exists in tree`)
             return this;
         }
 
+        // Ensure node is expanded if it should be centered
         if (obj._centered && !obj._expanded) obj._expanded = true;
+        
+        // Add the new node data to our flat data array
         attrs.data.push(obj);
 
-        // Update state of nodes and redraw graph
+        // Update node states and redraw the graph
         this.updateNodesState();
 
         return this;
@@ -1301,31 +1382,41 @@ export class OrgChart {
             })
     }
 
-    // Toggle children on click.
+    /**
+     * Handles expand/collapse button clicks
+     * Toggles the expanded state of a node and updates the chart
+     * 
+     * @param {Event} event - The click event
+     * @param {Object} d - The node data object
+     */
     onButtonClick(event, d) {
         const attrs = this.getChartState();
+        
+        // Ignore clicks on paging buttons
         if (d.data._pagingButton) {
             return;
         }
+        
+        // Center the node if configured to do so
         if (attrs.setActiveNodeCentered) {
             d.data._centered = true;
             d.data._centeredWithDescendants = true;
         }
 
-        // If childrens are expanded
+        // Toggle expanded/collapsed state
         if (d.children) {
-            //Collapse them
-            d._children = d.children;
-            d.children = null;
+            // If children are currently visible, collapse them
+            d._children = d.children;  // Store children in _children
+            d.children = null;         // Remove children from view
 
-            // Set descendants expanded property to false
+            // Mark all descendants as not expanded
             this.setExpansionFlagToChildren(d, false);
         } else {
-            // Expand children
-            d.children = d._children;
-            d._children = null;
+            // If children are currently collapsed, expand them
+            d.children = d._children;  // Restore children from _children
+            d._children = null;        // Clear _children storage
 
-            // Set each children as expanded
+            // Mark direct children as expanded
             if (d.children) {
                 d.children.forEach(({ data }) => (data._expanded = true));
             }
@@ -1400,23 +1491,35 @@ export class OrgChart {
         this.update(attrs.root);
     }
 
+    /**
+     * Sets up the chart layout and processes the data hierarchy
+     * Converts flat data into a hierarchical structure and handles expansion states
+     * 
+     * @param {Object} options - Configuration options
+     * @param {boolean} options.expandNodesFirst - Whether to expand all nodes before collapsing
+     */
     setLayouts({ expandNodesFirst = true }) {
         const attrs = this.getChartState();
-        // Store new root by converting flat data to hierarchy
-
+        
+        // Create function to generate hierarchical structure from flat data
         attrs.generateRoot = d3
             .stratify()
-            .id((d) => attrs.nodeId(d))
-            .parentId(d => attrs.parentNodeId(d))
+            .id((d) => attrs.nodeId(d))         // How to get node ID
+            .parentId(d => attrs.parentNodeId(d))  // How to get parent ID
+            
+        // Generate the hierarchy root from flat data
         attrs.root = attrs.generateRoot(attrs.data);
 
+        // Handle initial expansion level - expand nodes up to specified level
         const descendantsBefore = attrs.root.descendants();
         if (attrs.initialExpandLevel > 1 && descendantsBefore.length > 0) {
             descendantsBefore.forEach((d) => {
+                // Mark nodes at or above initialExpandLevel as expanded
                 if (d.depth <= attrs.initialExpandLevel) {
                     d.data._expanded = true;
                 }
             })
+            // Reset expand level to avoid re-expanding on subsequent updates
             attrs.initialExpandLevel = 1;
         }
 
@@ -1888,22 +1991,40 @@ export class OrgChart {
 
     }
 
-    // Calculate what size text will take
+    /**
+     * Calculates the width of text for proper layout and positioning
+     * Uses HTML5 Canvas to measure text width based on font settings
+     * 
+     * @param {string} text - The text to measure
+     * @param {Object} options - Font configuration options
+     * @param {number} options.fontSize - Font size in pixels (default: 14)
+     * @param {number} options.fontWeight - Font weight (default: 400)
+     * @param {string} options.defaultFont - Font family (default: "Helvetica")
+     * @param {CanvasRenderingContext2D} options.ctx - Canvas context for measurement
+     * @returns {number} The width of the text in pixels
+     */
     getTextWidth(text, {
         fontSize = 14,
         fontWeight = 400,
-        defaultFont = "Helvetice",
+        defaultFont = "Helvetica",
         ctx
     } = {}) {
-        ctx.font = `${fontWeight || ''} ${fontSize}px ${defaultFont} `
+        // Set font on canvas context
+        ctx.font = `${fontWeight || ''} ${fontSize}px ${defaultFont} `;
+        // Measure text
         const measurement = ctx.measureText(text);
         return measurement.width;
     }
 
-    // Clear after moving off from the page
+    /**
+     * Cleans up chart resources when no longer needed
+     * Removes event listeners and DOM elements to prevent memory leaks
+     */
     clear() {
         const attrs = this.getChartState();
+        // Remove window resize listener
         d3.select(window).on(`resize.${attrs.id}`, null);
+        // Remove all SVG elements
         attrs.svg && attrs.svg.selectAll("*").remove();
     }
 }
