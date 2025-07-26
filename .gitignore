@@ -122,3 +122,6 @@ dist
 package-lock.json
 
 .idea
+.opencode
+playwright-report
+test-results
