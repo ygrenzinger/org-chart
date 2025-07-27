@@ -2,7 +2,15 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
-    environment: 'jsdom',
+    browser: {
+      enabled: true,
+      provider: 'playwright',
+      instances: [
+        { browser: 'chromium'},
+      ]
+    },
+    include: ['test/**/*.{test,spec}.js'],
+    exclude: ['e2e/**/*'],
     setupFiles: ['./test/setup.js'],
     coverage: {
       include: ['src/**/*.js'],
@@ -14,5 +22,8 @@ export default defineConfig({
         statements: 90
       }
     }
+  },
+  optimizeDeps: {
+    exclude: ['playwright-core', 'playwright']
   }
 })
