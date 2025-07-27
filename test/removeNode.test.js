@@ -6,14 +6,23 @@ describe('removeNode() method', () => {
   let chart, container;
 
   beforeEach(() => {
+    // Clean up any existing container first
+    const existingContainer = document.getElementById('test-container');
+    if (existingContainer && existingContainer.parentNode) {
+      document.body.removeChild(existingContainer);
+    }
+    
     container = document.createElement('div');
     container.id = 'test-container';
     container.style.width = '800px';
     document.body.appendChild(container);
     
+    // Create a fresh copy of the mock data for each test
+    const freshData = mockHierarchicalData.map(node => ({ ...node }));
+    
     chart = new OrgChart()
       .container('#test-container')
-      .data([...mockHierarchicalData]);
+      .data(freshData);
   });
 
   afterEach(() => {
@@ -23,6 +32,8 @@ describe('removeNode() method', () => {
     if (container && container.parentNode) {
       document.body.removeChild(container);
     }
+    chart = null;
+    container = null;
   });
 
   test('should remove node and descendants', () => {
