@@ -8,6 +8,7 @@ describe('render() method', () => {
   beforeEach(() => {
     container = document.createElement('div');
     container.id = 'test-container';
+    container.style.width = '800px'; // Set explicit width to match expected SVG width
     document.body.appendChild(container);
     
     chart = new OrgChart()
