@@ -12,6 +12,10 @@ import { DataProcessor } from './data/DataProcessor.js';
 import { NodeManager } from './data/NodeManager.js';
 import { LayoutManager } from './layout/LayoutManager.js';
 import { Renderer } from './rendering/Renderer.js';
+import { ZoomManager } from './interaction/ZoomManager.js';
+import { NavigationManager } from './interaction/NavigationManager.js';
+import { EventManager } from './interaction/EventManager.js';
+import { FullscreenManager } from './interaction/FullscreenManager.js';
 
 const d3 = {
     selection,
@@ -47,8 +51,14 @@ export class OrgChart {
         // Initialize renderer
         this.renderer = new Renderer(chartState);
         
+        // Initialize interaction managers
+        this.zoomManager = new ZoomManager(chartState);
+        this.navigationManager = new NavigationManager(chartState, this.nodeManager, (d) => this.update(d));
+        this.eventManager = new EventManager(chartState, this.navigationManager, this.nodeManager);
+        this.fullscreenManager = new FullscreenManager(chartState);
+        
         // Store reference to chart instance for callbacks
-        attrs.chart = this;
+        attrs.chartInstance = this;
 
         // Dynamically set getter and setter functions for Chart class using ChartState
         Object.keys(attrs).forEach((key) => {
@@ -84,9 +94,7 @@ export class OrgChart {
 
     // This method can be invoked via chart.setZoomFactor API, it zooms to particulat scale
     initialZoom(zoomLevel) {
-        const attrs = this.getChartState();
-        attrs.lastTransform.k = zoomLevel;
-        return this;
+        return this.zoomManager.initialZoom(zoomLevel);
     }
 
     render() {
@@ -121,21 +129,8 @@ export class OrgChart {
 
         // ******************* BEHAVIORS  **********************
         if (attrs.firstDraw) {
-            const behaviors = {
-                zoom: null
-            };
-
-            // Get zooming function
-            behaviors.zoom = attrs.createZoom()
-                .clickDistance(10)
-                .on('start', (event, d) => attrs.onZoomStart(event))
-                .on('end', (event, d) => attrs.onZoomEnd(event))
-                .on("zoom", (event, d) => {
-                    attrs.onZoom(event);
-                    this.zoomed(event, d);
-                })
-                .scaleExtent(attrs.scaleExtent)
-            attrs.zoomBehavior = behaviors.zoom;
+            // Initialize zoom behavior using ZoomManager
+            this.zoomManager.initializeZoom();
         }
 
         //****************** ROOT node work ************************
@@ -285,90 +280,18 @@ export class OrgChart {
 
     // Toggle children on click.
     onButtonClick(event, d) {
-        const attrs = this.getChartState();
-        if (d.data._pagingButton) {
-            return;
-        }
-        if (attrs.setActiveNodeCentered) {
-            d.data._centered = true;
-            d.data._centeredWithDescendants = true;
-        }
-
-        // If childrens are expanded
-        if (d.children) {
-            //Collapse them
-            d._children = d.children;
-            d.children = null;
-
-            // Set descendants expanded property to false
-            this.setExpansionFlagToChildren(d, false);
-        } else {
-            // Expand children
-            d.children = d._children;
-            d._children = null;
-
-            // Set each children as expanded
-            if (d.children) {
-                d.children.forEach(({ data }) => (data._expanded = true));
-            }
-        }
-
-        // Redraw Graph
-        this.update(d);
-        event.stopPropagation();
-
-        // Trigger callback
-        attrs.onExpandOrCollapse(d);
-
+        this.navigationManager.onButtonClick(event, d);
     }
 
     // This function changes `expanded` property to descendants
     setExpansionFlagToChildren({ data, children, _children }, flag) {
-        // Set flag to the current property
-        data._expanded = flag;
-
-        // Loop over and recursively update expanded children's descendants
-        if (children) {
-            children.forEach((d) => {
-                this.setExpansionFlagToChildren(d, flag);
-            });
-        }
-
-        // Loop over and recursively update collapsed children's descendants
-        if (_children) {
-            _children.forEach((d) => {
-                this.setExpansionFlagToChildren(d, flag);
-            });
-        }
+        this.navigationManager.setExpansionFlagToChildren({ data, children, _children }, flag);
     }
 
 
     // Method which only expands nodes, which have property set "expanded=true"
     expandSomeNodes(d) {
-        // If node has expanded property set
-        if (d.data._expanded) {
-            // Retrieve node's parent
-            let parent = d.parent;
-
-            // While we can go up
-            while (parent && parent._children) {
-                // Expand all current parent's children
-                parent.children = parent._children;
-                parent._children = null;
-                // Replace current parent holding object
-                parent = parent.parent;
-            }
-        }
-
-        // Recursively do the same for collapsed nodes
-        if (d._children) {
-            d._children.forEach((ch) => this.expandSomeNodes(ch));
-        }
-
-        // Recursively do the same for expanded nodes
-        if (d.children) {
-            d.children.forEach((ch) => this.expandSomeNodes(ch));
-        }
+        this.navigationManager.expandSomeNodes(d);
     }
 
     // This function updates nodes state and redraws graph, usually after data change
@@ -463,7 +386,7 @@ export class OrgChart {
         if (attrs.root.children) {
             if (expandNodesFirst) {
                 // Expand all nodes first
-                attrs.root.children.forEach(this.expand);
+                attrs.root.children.forEach((d) => this.expand(d));
             }
             // Then collapse them all
             attrs.root.children.forEach((d) => this.collapse(d));
@@ -481,73 +404,25 @@ export class OrgChart {
 
     // Function which collapses passed node and it's descendants
     collapse(d) {
-        if (d.children) {
-            d._children = d.children;
-            d._children.forEach((ch) => this.collapse(ch));
-            d.children = null;
-        }
+        this.navigationManager.collapse(d);
     }
 
     // Function which expands passed node and it's descendants
     expand(d) {
-        if (d._children) {
-            d.children = d._children;
-            d.children.forEach((ch) => this.expand(ch));
-            d._children = null;
-        }
+        this.navigationManager.expand(d);
     }
 
     // Zoom handler function
     zoomed(event, d) {
-        const attrs = this.getChartState();
-        const chart = attrs.chart;
-
-        // Get d3 event's transform object
-        const transform = event.transform;
-
-        // Store it
-        attrs.lastTransform = transform;
-
-        // Reposition and rescale chart accordingly
-        chart.attr("transform", transform);
-
-        // Apply new styles to the foreign object element
-        if (this.isEdge()) {
-            this.restyleForeignObjectElements();
-        }
+        this.zoomManager.zoomed(event, d);
     }
 
     zoomTreeBounds({ x0, x1, y0, y1, params = { animate: true, scale: true, onCompleted: () => { } } }) {
-        const { centerG, svgWidth: w, svgHeight: h, svg, zoomBehavior, duration, lastTransform } = this.getChartState()
-        let scaleVal = Math.min(8, 0.9 / Math.max((x1 - x0) / w, (y1 - y0) / h));
-        let identity = d3.zoomIdentity.translate(w / 2, h / 2)
-        identity = identity.scale(params.scale ? scaleVal : lastTransform.k)
-
-        identity = identity.translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
-        // Transition zoom wrapper component into specified bounds
-        svg.transition().duration(params.animate ? duration : 0).call(zoomBehavior.transform, identity);
-        centerG.transition().duration(params.animate ? duration : 0).attr('transform', 'translate(0,0)')
-            .on('end', function () {
-                if (params.onCompleted) {
-                    params.onCompleted()
-                }
-            })
+        this.zoomManager.zoomTreeBounds({ x0, x1, y0, y1, params });
     }
 
     fit({ animate = true, nodes, scale = true, onCompleted = () => { } } = {}) {
-        const attrs = this.getChartState();
-        const { root } = attrs;
-        let descendants = nodes ? nodes : root.descendants();
-        const { minX, maxX, minY, maxY } = MathUtils.calculateBounds(descendants, attrs.layoutBindings, attrs.layout);
-
-        this.zoomTreeBounds({
-            params: { animate: animate, scale, onCompleted },
-            x0: minX - 50,
-            x1: maxX + 50,
-            y0: minY - 50,
-            y1: maxY + 50,
-
-        });
+        this.zoomManager.fit({ animate, nodes, scale, onCompleted });
         return this;
     }
 
@@ -587,41 +462,17 @@ export class OrgChart {
 
     // It can take selector which would go fullscreen
     fullscreen(elem) {
-        const attrs = this.getChartState();
-        const el = d3.select(elem || attrs.container).node();
-
-        d3.select(document).on('fullscreenchange.' + attrs.id, function (d) {
-            const fsElement = document.fullscreenElement || document.mozFullscreenElement || document.webkitFullscreenElement;
-            if (fsElement == el) {
-                setTimeout(d => {
-                    attrs.svg.attr('height', window.innerHeight - 40);
-                }, 500)
-            } else {
-                attrs.svg.attr('height', attrs.svgHeight)
-            }
-        })
-
-        if (el.requestFullscreen) {
-            el.requestFullscreen();
-        } else if (el.mozRequestFullScreen) {
-            el.mozRequestFullScreen();
-        } else if (el.webkitRequestFullscreen) {
-            el.webkitRequestFullscreen();
-        } else if (el.msRequestFullscreen) {
-            el.msRequestFullscreen();
-        }
+        this.fullscreenManager.fullscreen(elem);
     }
 
     // Zoom in exposed method
     zoomIn() {
-        const { svg, zoomBehavior } = this.getChartState();
-        svg.transition().call(zoomBehavior.scaleBy, 1.3);
+        this.zoomManager.zoomIn();
     }
 
     // Zoom out exposed method
     zoomOut() {
-        const { svg, zoomBehavior } = this.getChartState();
-        svg.transition().call(zoomBehavior.scaleBy, 0.78);
+        this.zoomManager.zoomOut();
     }
 
     toDataURL(url, callback) {
@@ -685,18 +536,20 @@ export class OrgChart {
     }
 
     expandAll() {
-        const { allNodes, root, data } = this.getChartState();
-        data.forEach(d => d._expanded = true)
-        // allNodes.forEach(d => d.data._expanded = true);
-        this.render()
+        this.navigationManager.expandAll();
+        this.render();
         return this;
     }
 
     collapseAll() {
-        const { allNodes, root } = this.getChartState();
-        allNodes.forEach(d => d.data._expanded = false);
-        this.initialExpandLevel(0)
+        this.navigationManager.collapseAll();
+        this.initialExpandLevel(0);
         this.render();
+        return this;
+    }
+
+    initialExpandLevel(level) {
+        this.navigationManager.initialExpandLevel(level);
         return this;
     }
 

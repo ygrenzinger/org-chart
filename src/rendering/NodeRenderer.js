@@ -166,6 +166,14 @@ export class NodeRenderer {
 
   handleNodeClick(event, node) {
     const attrs = this.state.getState();
+    
+    // Delegate to EventManager if available
+    if (attrs.chartInstance && attrs.chartInstance.eventManager) {
+      attrs.chartInstance.eventManager.handleNodeClick(event, node);
+      return;
+    }
+    
+    // Fallback to original behavior
     const { data } = node;
     
     if ([...event.srcElement.classList].includes("node-button-foreign-object")) {
@@ -173,12 +181,9 @@ export class NodeRenderer {
     }
     
     if ([...event.srcElement.classList].includes("paging-button-wrapper")) {
-      // Handle paging - this should be delegated to NodeManager
-      // For now, we'll call the original method from the main chart
-      if (attrs.chart && attrs.chart.loadPagingNodes) {
-        attrs.chart.loadPagingNodes(node);
-      }
-      return;
+        if (attrs.chartInstance && attrs.chartInstance.loadPagingNodes) {
+          attrs.chartInstance.loadPagingNodes(node);
+        }      return;
     }
     
     if (!data._pagingButton) {
@@ -191,15 +196,22 @@ export class NodeRenderer {
 
   handleNodeKeydown(event, node) {
     const attrs = this.state.getState();
+    
+    // Delegate to EventManager if available
+    if (attrs.chartInstance && attrs.chartInstance.eventManager) {
+      attrs.chartInstance.eventManager.handleNodeKeydown(event, node);
+      return;
+    }
+    
+    // Fallback to original behavior
     const { data } = node;
     if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
       if ([...event.srcElement.classList].includes("node-button-foreign-object")) {
         return;
       }
       if ([...event.srcElement.classList].includes("paging-button-wrapper")) {
-        // Handle paging - this should be delegated to NodeManager
-        if (attrs.chart && attrs.chart.loadPagingNodes) {
-          attrs.chart.loadPagingNodes(node);
+        if (attrs.chartInstance && attrs.chartInstance.loadPagingNodes) {
+          attrs.chartInstance.loadPagingNodes(node);
         }
         return;
       }
@@ -211,15 +223,30 @@ export class NodeRenderer {
 
   handleButtonClick(event, node) {
     const attrs = this.state.getState();
-    // This should be delegated to NavigationManager
-    // For now, we'll call the original method from the main chart
+    
+    // Delegate to EventManager if available
+    if (attrs.chartInstance && attrs.chartInstance.eventManager) {
+      attrs.chartInstance.eventManager.handleButtonClick(event, node);
+      return;
+    }
+    
+    // Fallback to original behavior
     event.stopPropagation();
-    if (attrs.chart && attrs.chart.onButtonClick) {
-      attrs.chart.onButtonClick(event, node);
+    if (attrs.chartInstance && attrs.chartInstance.onButtonClick) {
+      attrs.chartInstance.onButtonClick(event, node);
     }
   }
 
   handleButtonKeydown(event, node) {
+    const attrs = this.state.getState();
+    
+    // Delegate to EventManager if available
+    if (attrs.chartInstance && attrs.chartInstance.eventManager) {
+      attrs.chartInstance.eventManager.handleButtonKeydown(event, node);
+      return;
+    }
+    
+    // Fallback to original behavior
     if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
       this.handleButtonClick(event, node);
     }
