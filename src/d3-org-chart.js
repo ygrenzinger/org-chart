@@ -8,6 +8,8 @@ import { ChartState } from './core/ChartState.js';
 import { DOMUtils } from './utils/DOMUtils.js';
 import { MathUtils } from './utils/MathUtils.js';
 import { ExportUtils } from './utils/ExportUtils.js';
+import { DataProcessor } from './data/DataProcessor.js';
+import { NodeManager } from './data/NodeManager.js';
 
 const d3 = {
     selection,
@@ -31,6 +33,10 @@ export class OrgChart {
         const attrs = chartState.getState();
 
         this.getChartState = () => attrs;
+
+        // Initialize data processing modules
+        this.dataProcessor = new DataProcessor(chartState);
+        this.nodeManager = new NodeManager(this.dataProcessor, chartState);
 
         // Dynamically set getter and setter functions for Chart class using ChartState
         Object.keys(attrs).forEach((key) => {
@@ -61,25 +67,7 @@ export class OrgChart {
 
     // This method retrieves passed node's children IDs (including node)
     getNodeChildren({ data, children, _children }, nodeStore) {
-        // Store current node ID
-        nodeStore.push(data);
-
-        // Loop over children and recursively store descendants id (expanded nodes)
-        if (children) {
-            children.forEach((d) => {
-                this.getNodeChildren(d, nodeStore);
-            });
-        }
-
-        // Loop over _children and recursively store descendants id (collapsed nodes)
-        if (_children) {
-            _children.forEach((d) => {
-                this.getNodeChildren(d, nodeStore);
-            });
-        }
-
-        // Return result
-        return nodeStore;
+        return this.dataProcessor.getNodeChildren({ data, children, _children }, nodeStore);
     }
 
     // This method can be invoked via chart.setZoomFactor API, it zooms to particulat scale
@@ -250,58 +238,28 @@ export class OrgChart {
 
     // This function can be invoked via chart.addNode API, and it adds node in tree at runtime
     addNode(obj) {
-        const attrs = this.getChartState();
-        if (obj && (attrs.parentNodeId(obj) == null || attrs.parentNodeId(obj) == attrs.nodeId(obj)) && attrs.data.length == 0) {
-            attrs.data.push(obj);
-            this.render()
-            return this;
+        const success = this.nodeManager.addNode(obj);
+        if (success) {
+            const attrs = this.getChartState();
+            if (attrs.data.length === 1) {
+                this.render();
+            } else {
+                this.updateNodesState();
+            }
         }
-        const root = attrs.generateRoot(attrs.data)
-        const descendants = root.descendants();
-        const nodeFound = descendants.filter(({ data }) => attrs.nodeId(data).toString() === attrs.nodeId(obj).toString())[0];
-        const parentFound = descendants.filter(({ data }) => attrs.nodeId(data).toString() === attrs.parentNodeId(obj).toString())[0];
-        if (nodeFound) {
-            console.log(`ORG CHART - ADD - Node with id "${attrs.nodeId(obj)}" already exists in tree`)
-            return this;
-        }
-
-        if (obj._centered && !obj._expanded) obj._expanded = true;
-        attrs.data.push(obj);
-
-        // Update state of nodes and redraw graph
-        this.updateNodesState();
-
         return this;
     }
 
     // This function can be invoked via chart.removeNode API, and it removes node from tree at runtime
     removeNode(nodeId) {
-        const attrs = this.getChartState();
-        const root = attrs.generateRoot(attrs.data)
-        const descendants = root.descendants();
-        const node = descendants.filter(({ data }) => attrs.nodeId(data) == nodeId)[0];
-
-        if (!node) {
-            console.log(`ORG CHART - REMOVE - Node with id "${nodeId}" not found in the tree`);
-            return this;
-        }
-
-        // Get all node descendants
-        const nodeDescendants = node.descendants()
-
-        // Mark all node children and node itself for removal
-        nodeDescendants
-            .forEach(d => d.data._filteredOut = true)
-
-        // Filter out retrieved nodes and reassign data
-        attrs.data = attrs.data.filter(d => !d._filteredOut);
-
-        if (attrs.data.length == 0) {
-            this.render();
-        } else {
-            const updateNodesState = this.updateNodesState.bind(this);
-            // Update state of nodes and redraw graph
-            updateNodesState();
+        const success = this.nodeManager.removeNode(nodeId);
+        if (success) {
+            const attrs = this.getChartState();
+            if (attrs.data.length === 0) {
+                this.render();
+            } else {
+                this.updateNodesState();
+            }
         }
         return this;
     }
@@ -945,10 +903,7 @@ export class OrgChart {
         const attrs = this.getChartState();
         // Store new root by converting flat data to hierarchy
 
-        attrs.generateRoot = d3
-            .stratify()
-            .id((d) => attrs.nodeId(d))
-            .parentId(d => attrs.parentNodeId(d))
+        attrs.generateRoot = (data) => this.dataProcessor.generateRoot(data);
         attrs.root = attrs.generateRoot(attrs.data);
 
         const descendantsBefore = attrs.root.descendants();
@@ -1005,17 +960,9 @@ export class OrgChart {
         })
 
 
-        attrs.root = d3
-            .stratify()
-            .id((d) => attrs.nodeId(d))
-            .parentId(d => attrs.parentNodeId(d))(attrs.data.filter(d => hiddenNodesMap[d.id] !== true));
+        attrs.root = this.dataProcessor.generateRoot(attrs.data.filter(d => hiddenNodesMap[d.id] !== true));
 
-        attrs.root.each((node, i, arr) => {
-            let _hierarchyHeight = node._hierarchyHeight || node.height
-            let width = attrs.nodeWidth(node);
-            let height = attrs.nodeHeight(node);
-            Object.assign(node, { width, height, _hierarchyHeight })
-        })
+        attrs.root = this.dataProcessor.processHierarchyData(attrs.root, attrs);
 
         // Store positions, where children appear during their enter animation
         attrs.root.x0 = 0;
@@ -1123,94 +1070,34 @@ export class OrgChart {
 
     // Load Paging Nodes
     loadPagingNodes(node) {
-        const attrs = this.getChartState();
-        node.data._pagingButton = false;
-        const current = node.parent.data._pagingStep;
-        const step = attrs.pagingStep(node.parent)
-        const newPagingIndex = current + step;
-        node.parent.data._pagingStep = newPagingIndex;
+        this.nodeManager.loadPagingNodes(node);
         this.updateNodesState();
     }
 
     // This function can be invoked via chart.setExpanded API, it expands or collapses particular node
     setExpanded(id, expandedFlag = true) {
-
-        const attrs = this.getChartState();
-        // Retrieve node by node Id
-        const node = attrs.allNodes.filter(({ data }) => attrs.nodeId(data) == id)[0];
-
-        if (!node) {
-            console.log(`ORG CHART - ${expandedFlag ? "EXPAND" : "COLLAPSE"} - Node with id (${id})  not found in the tree`)
-            return this;
-        }
-        node.data._expanded = expandedFlag;
-        if (expandedFlag == false) {
-            const parent = node.parent || { descendants: () => [] };
-            const descendants = parent.descendants().filter(d => d != parent);
-            descendants.forEach(d => d.data._expanded = false)
-        }
-
-
+        this.nodeManager.setExpanded(id, expandedFlag);
         return this;
     }
 
     setCentered(nodeId) {
-        const attrs = this.getChartState();
-        // this.setExpanded(nodeId)
-        const root = attrs.generateRoot(attrs.data)
-        const descendants = root.descendants();
-        const node = descendants.filter(({ data }) => attrs.nodeId(data).toString() == nodeId.toString())[0];
-        if (!node) {
-            console.log(`ORG CHART - CENTER - Node with id (${nodeId}) not found in the tree`)
-            return this;
-        }
-        const ancestors = node.ancestors();
-        ancestors.forEach(d => d.data._expanded = true)
-        node.data._centered = true;
-        node.data._expanded = true;
+        this.nodeManager.setCentered(nodeId);
         return this;
     }
 
     setHighlighted(nodeId) {
-        const attrs = this.getChartState();
-        const root = attrs.generateRoot(attrs.data)
-        const descendants = root.descendants();
-        const node = descendants.filter(d => attrs.nodeId(d.data).toString() === nodeId.toString())[0];
-        if (!node) {
-            console.log(`ORG CHART - HIGHLIGHT - Node with id (${nodeId})  not found in the tree`);
-            return this
-        }
-        const ancestors = node.ancestors();
-        ancestors.forEach(d => d.data._expanded = true)
-        node.data._highlighted = true;
-        node.data._expanded = true;
-        node.data._centered = true;
+        this.nodeManager.setHighlighted(nodeId);
         return this;
     }
 
     setUpToTheRootHighlighted(nodeId) {
-        const attrs = this.getChartState();
-        const root = attrs.generateRoot(attrs.data)
-        const descendants = root.descendants();
-        const node = descendants.filter(d => attrs.nodeId(d.data).toString() === nodeId.toString())[0];
-        if (!node) {
-            console.log(`ORG CHART - HIGHLIGHTROOT - Node with id (${nodeId}) not found in the tree`)
-            return this;
-        }
-        const ancestors = node.ancestors();
-        ancestors.forEach(d => d.data._expanded = true)
-        node.data._upToTheRootHighlighted = true;
-        node.data._expanded = true;
-        node.ancestors().forEach(d => d.data._upToTheRootHighlighted = true)
+        this.nodeManager.setUpToTheRootHighlighted(nodeId);
         return this;
     }
 
     clearHighlighting() {
         const attrs = this.getChartState();
-        attrs.allNodes.forEach(d => {
-            d.data._highlighted = false;
-            d.data._upToTheRootHighlighted = false;
-        })
+        this.nodeManager.clearHighlighting();
         this.update(attrs.root);
         return this;
     }
