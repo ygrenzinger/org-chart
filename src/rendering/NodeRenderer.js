@@ -1,7 +1,5 @@
-import { select } from 'd3-selection';
+import * as d3 from 'd3';
 import { DOMUtils } from '../utils/DOMUtils.js';
-
-const d3 = { select };
 
 export class NodeRenderer {
   constructor(state) {
@@ -22,7 +20,6 @@ export class NodeRenderer {
       .append("g")
       .attr("class", "node")
       .attr("transform", (d) => {
-        if (d == attrs.root) return `translate(${x0},${y0})`;
         const xj = attrs.layoutBindings[attrs.layout].nodeJoinX({ x: x0, y: y0, width, height });
         const yj = attrs.layoutBindings[attrs.layout].nodeJoinY({ x: x0, y: y0, width, height });
         return `translate(${xj},${yj})`;
@@ -57,25 +54,16 @@ export class NodeRenderer {
       .on("click", (event, d) => this.handleButtonClick(event, d))
       .on("keydown", (event, d) => this.handleButtonKeydown(event, d));
 
-    // Add button rectangle for click area
-    DOMUtils.patternify(nodeButtonGroups, 'node-button-rect', 'rect', d => [d])
-      .attr('opacity', 0)
+    // Add button foreign object
+    DOMUtils.patternify(nodeButtonGroups, 'node-button-foreign-object', 'foreignObject', d => [d])
       .attr('pointer-events', 'all')
       .attr('width', d => attrs.nodeButtonWidth(d))
       .attr('height', d => attrs.nodeButtonHeight(d))
       .attr('x', d => attrs.nodeButtonX(d))
       .attr('y', d => attrs.nodeButtonY(d));
 
-    // Add button foreign object
-    const nodeFo = DOMUtils.patternify(nodeButtonGroups, 'node-button-foreign-object', 'foreignObject', d => [d])
-      .attr('width', d => attrs.nodeButtonWidth(d))
-      .attr('height', d => attrs.nodeButtonHeight(d))
-      .attr('x', d => attrs.nodeButtonX(d))
-      .attr('y', d => attrs.nodeButtonY(d))
-      .style('overflow', 'visible');
-
     // Add expand collapse button content
-    DOMUtils.patternify(nodeFo, 'node-button-div', 'xhtml:div', d => [d])
+    DOMUtils.patternify(nodeButtonGroups.select('.node-button-foreign-object'), 'node-button-div', 'xhtml:div', d => [d])
       .style('pointer-events', 'none')
       .style('display', 'flex')
       .style('width', '100%')
@@ -90,7 +78,9 @@ export class NodeRenderer {
     // Transition to the proper position for the node
     nodeUpdate
       .transition()
+      .duration(attrs.duration)
       .attr("opacity", 0)
+      .transition()
       .duration(attrs.duration)
       .attr("transform", ({ x, y, width, height }) => {
         return attrs.layoutBindings[attrs.layout].nodeUpdateTransform({ x, y, width, height });
@@ -115,16 +105,10 @@ export class NodeRenderer {
       return `translate(${x},${y})`;
     })
     .attr("display", ({ data }) => {
-      return data._directSubordinates > 0 ? null : 'none';
+      return data._directSubordinates > 0 ? "block" : "none";
     })
     .attr("opacity", ({ data, children, _children }) => {
-      if (data._pagingButton) {
-        return 0;
-      }
-      if (children || _children) {
-        return 1;
-      }
-      return 0;
+      return data._directSubordinates > 0 ? 1 : 0;
     });
 
     // Restyle node button content

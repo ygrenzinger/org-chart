@@ -1,3 +1,4 @@
+import * as d3 from 'd3';
 import { DOMUtils } from '../utils/DOMUtils.js';
 
 export class LinkRenderer {
@@ -30,21 +31,19 @@ export class LinkRenderer {
 
     // Styling links
     linkUpdate
-      .attr("fill", "none");
+      .attr("fill", "none")
+      .attr("stroke", "#E4E2E9")
+      .attr("stroke-width", 1);
 
     // Handle Edge browser display issues
     if (DOMUtils.isEdge()) {
-      linkUpdate
-        .style('display', d => {
-          const display = d.data._pagingButton ? 'none' : 'auto';
-          return display;
-        });
+      linkUpdate.style('display', d => {
+        return d.data._upToTheRootHighlighted ? 'initial' : 'none';
+      });
     } else {
-      linkUpdate
-        .attr('display', d => {
-          const display = d.data._pagingButton ? 'none' : 'auto';
-          return display;
-        });
+      linkUpdate.attr('display', d => {
+        return d.data._upToTheRootHighlighted ? 'initial' : 'none';
+      });
     }
 
     // Allow external modifications
@@ -73,7 +72,7 @@ export class LinkRenderer {
         const m = attrs.compact && d.flexCompactDim ? {
           x: attrs.layoutBindings[attrs.layout].linkCompactXStart(d),
           y: attrs.layoutBindings[attrs.layout].linkCompactYStart(d),
-        } : n;
+        } : null;
 
         return attrs.layoutBindings[attrs.layout].diagonal(n, p, m, { sy: attrs.linkYOffset });
       });

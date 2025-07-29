@@ -1,10 +1,8 @@
-import { select } from 'd3-selection';
+import * as d3 from 'd3';
 import { NodeRenderer } from './NodeRenderer.js';
 import { LinkRenderer } from './LinkRenderer.js';
 import { ConnectionRenderer } from './ConnectionRenderer.js';
 import { DOMUtils } from '../utils/DOMUtils.js';
-
-const d3 = { select };
 
 export class Renderer {
   constructor(state) {
@@ -26,11 +24,9 @@ export class Renderer {
       .attr("font-family", attrs.defaultFont);
 
     // Add zoom behavior
-    if (attrs.firstDraw) {
-      svg.call(attrs.zoomBehavior)
-        .on("dblclick.zoom", null)
-        .attr("cursor", "move");
-    }
+    svg.call(attrs.zoomBehavior)
+      .on("dblclick.zoom", null)
+      .attr("cursor", "move");
 
     // Add container g element
     const chart = DOMUtils.patternify(svg, 'chart', 'g', [{}]);
@@ -42,7 +38,7 @@ export class Renderer {
     attrs.linksWrapper = DOMUtils.patternify(centerG, 'links-wrapper', 'g', [{}]);
     attrs.nodesWrapper = DOMUtils.patternify(centerG, 'nodes-wrapper', 'g', [{}]);
     attrs.connectionsWrapper = DOMUtils.patternify(centerG, 'connections-wrapper', 'g', [{}]);
-    attrs.defsWrapper = DOMUtils.patternify(svg, 'defs-wrapper', 'g', [{}]);
+    attrs.defsWrapper = DOMUtils.patternify(svg, 'defs-wrapper', 'defs', [{}]);
 
     // Store references
     attrs.svg = svg;
@@ -56,19 +52,14 @@ export class Renderer {
     const attrs = this.state.getState();
 
     // Set center transform
-    if (attrs.firstDraw) {
-      attrs.centerG.attr("transform", () => {
-        return attrs.layoutBindings[attrs.layout].centerTransform({
-          centerX: attrs.calc.centerX,
-          centerY: attrs.calc.centerY,
-          scale: attrs.lastTransform.k,
-          rootMargin: attrs.rootMargin,
-          root: attrs.root,
-          chartHeight: attrs.calc.chartHeight,
-          chartWidth: attrs.calc.chartWidth
-        });
+    attrs.centerG.attr("transform", () => {
+      return attrs.layoutBindings[attrs.layout].centerTransform({
+        root: attrs.root,
+        centerY: attrs.centerY,
+        scale: attrs.scale,
+        centerX: attrs.centerX
       });
-    }
+    });
 
     // Render connection definitions
     this.connectionRenderer.renderConnectionDefs(attrs.defsWrapper, visibleConnections);

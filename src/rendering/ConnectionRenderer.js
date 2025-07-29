@@ -1,3 +1,5 @@
+import * as d3 from 'd3';
+
 export class ConnectionRenderer {
   constructor(state) {
     this.state = state;
@@ -14,7 +16,7 @@ export class ConnectionRenderer {
     // Enter any new connections
     const connEnter = connectionsSel
       .enter()
-      .insert("path", "g")
+      .append("path")
       .attr("class", "connection");
 
     // Get connections update selection
@@ -22,8 +24,6 @@ export class ConnectionRenderer {
 
     // Styling connections
     connUpdate.attr("fill", "none")
-      .transition()
-      .duration(attrs.duration)
       .attr('d', (d) => {
         const xs = attrs.layoutBindings[attrs.layout].linkX({ 
           x: d._source.x, y: d._source.y, width: d._source.width, height: d._source.height 
