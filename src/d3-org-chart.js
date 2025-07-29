@@ -16,6 +16,8 @@ import { ZoomManager } from './interaction/ZoomManager.js';
 import { NavigationManager } from './interaction/NavigationManager.js';
 import { EventManager } from './interaction/EventManager.js';
 import { FullscreenManager } from './interaction/FullscreenManager.js';
+import { ExportManager } from './export/ExportManager.js';
+import { PrintManager } from './export/PrintManager.js';
 
 const d3 = {
     selection,
@@ -56,6 +58,10 @@ export class OrgChart {
         this.navigationManager = new NavigationManager(chartState, this.nodeManager, (d) => this.update(d));
         this.eventManager = new EventManager(chartState, this.navigationManager, this.nodeManager);
         this.fullscreenManager = new FullscreenManager(chartState);
+        
+        // Initialize export managers
+        this.exportManager = new ExportManager(this);
+        this.printManager = new PrintManager(this, this.exportManager);
         
         // Store reference to chart instance for callbacks
         attrs.chartInstance = this;
@@ -479,59 +485,15 @@ export class OrgChart {
         ExportUtils.toDataURL(url, callback);
     }
 
-    exportImg({ full = false, scale = 3, onLoad = d => d, save = true, backgroundColor = "#FAFAFA" } = {}) {
-        const that = this;
-        const attrs = this.getChartState();
-        const { svg: svgImg, root } = attrs
-        let count = 0;
-        const selection = svgImg.selectAll('img')
-        let total = selection.size()
-
-        const exportImage = () => {
-            const transform = JSON.parse(JSON.stringify(that.lastTransform()));
-            const duration = that.duration();
-            if (full) {
-                that.fit();
-            }
-            const { svg } = that.getChartState()
-
-            setTimeout(d => {
-                that.downloadImage({
-                    node: svg.node(), scale,
-                    isSvg: false,
-                    backgroundColor,
-                    onAlreadySerialized: d => {
-                        that.update(root)
-                    },
-                    imageName: attrs.imageName,
-                    onLoad: onLoad,
-                    save
-                })
-            }, full ? duration + 10 : 0)
-        }
-
-        if (total > 0) {
-            selection
-                .each(function () {
-                    that.toDataURL(this.src, (dataUrl) => {
-                        this.src = dataUrl;
-                        if (++count == total) {
-                            exportImage();
-                        }
-                    })
-                })
-        } else {
-            exportImage();
-        }
-
-
+    exportImg(options = {}) {
+        this.exportManager.exportPNG(options);
+        return this;
     }
 
 
 
     exportSvg() {
-        const { svg, imageName } = this.getChartState();
-        this.downloadImage({ imageName: imageName, node: svg.node(), scale: 3, isSvg: true })
+        this.exportManager.exportSVG();
         return this;
     }
 
@@ -553,58 +515,8 @@ export class OrgChart {
         return this;
     }
 
-    downloadImage({ node, scale = 2, imageName = 'graph', isSvg = false, save = true, backgroundColor = "#FAFAFA", onAlreadySerialized = d => { }, onLoad = d => { } }) {
-        // Retrieve svg node
-        const svgNode = node;
-
-
-
-
-        if (isSvg) {
-            let source = ExportUtils.serializeString(svgNode);
-            //add xml declaration
-            source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
-            //convert svg source to URI data scheme.
-            var url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
-            ExportUtils.saveAs(url, imageName + ".svg");
-            onAlreadySerialized()
-            return;
-        }
-        // Get image quality index (basically,  index you can zoom in)
-        const quality = scale
-        // Create image
-        const image = document.createElement('img');
-        image.onload = function () {
-            // Create image canvas
-            const canvas = document.createElement('canvas');
-            // Set width and height based on SVG node
-            const rect = svgNode.getBoundingClientRect();
-            canvas.width = rect.width * quality;
-            canvas.height = rect.height * quality;
-            // Draw background
-            const context = canvas.getContext('2d');
-            context.fillStyle = backgroundColor;;
-            context.fillRect(0, 0, rect.width * quality, rect.height * quality);
-            context.drawImage(image, 0, 0, rect.width * quality, rect.height * quality);
-            // Set some image metadata
-            let dt = canvas.toDataURL('image/png');
-            if (onLoad) {
-                onLoad(dt)
-            }
-            if (save) {
-                // Invoke saving function
-                ExportUtils.saveAs(dt, imageName + '.png');
-            }
-
-        };
-
-        var url = 'data:image/svg+xml; charset=utf8, ' + encodeURIComponent(ExportUtils.serializeString(svgNode));
-
-        onAlreadySerialized()
-
-        image.src = url// URL.createObjectURL(blob);
-        // This function invokes save window
-
+    downloadImage(options) {
+        return this.exportManager.imageExporter.downloadImage(options);
     }
 
     // Calculate what size text will take
