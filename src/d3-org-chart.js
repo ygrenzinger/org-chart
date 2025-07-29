@@ -5,6 +5,9 @@ import { zoom, zoomIdentity } from "d3-zoom";
 import { flextree } from 'd3-flextree';
 import { linkHorizontal } from 'd3-shape';
 import { ChartState } from './core/ChartState.js';
+import { DOMUtils } from './utils/DOMUtils.js';
+import { MathUtils } from './utils/MathUtils.js';
+import { ExportUtils } from './utils/ExportUtils.js';
 
 const d3 = {
     selection,
@@ -52,17 +55,7 @@ export class OrgChart {
             var elementTag = params.tag;
             var data = params.data || [selector];
 
-            // Pattern in action
-            var selection = container.selectAll("." + selector).data(data, (d, i) => {
-                if (typeof d === "object") {
-                    if (d.id) { return d.id; }
-                }
-                return i;
-            });
-            selection.exit().remove();
-            selection = selection.enter().append(elementTag).merge(selection);
-            selection.attr("class", selector);
-            return selection;
+            return DOMUtils.patternify(container, selector, elementTag, data);
         };
     }
 
@@ -313,20 +306,8 @@ export class OrgChart {
         return this;
     }
 
-    groupBy(array, accessor, aggegator) {
-        const grouped = {}
-        array.forEach(item => {
-            const key = accessor(item)
-            if (!grouped[key]) {
-                grouped[key] = []
-            }
-            grouped[key].push(item)
-        })
-
-        Object.keys(grouped).forEach(key => {
-            grouped[key] = aggegator(grouped[key])
-        })
-        return Object.entries(grouped);
+    groupBy(array, accessor, aggregator) {
+        return MathUtils.groupBy(array, accessor, aggregator);
     }
     calculateCompactFlexDimensions(root) {
         const attrs = this.getChartState();
@@ -837,9 +818,11 @@ export class OrgChart {
 
     }
 
+
+
     // This function detects whether current browser is edge
     isEdge() {
-        return window.navigator.userAgent.includes("Edge");
+        return DOMUtils.isEdge();
     }
 
     // Generate horizontal diagonal - play with it here - https://observablehq.com/@bumbeishvili/curved-edges-horizontal-d3-v3-v4-v5-v6
@@ -856,23 +839,7 @@ export class OrgChart {
 
     restyleForeignObjectElements() {
         const attrs = this.getChartState();
-
-        attrs.svg
-            .selectAll(".node-foreign-object")
-            .attr("width", ({ width }) => width)
-            .attr("height", ({ height }) => height)
-            .attr("x", ({ width }) => 0)
-            .attr("y", ({ height }) => 0);
-        attrs.svg
-            .selectAll(".node-foreign-object-div")
-            .style("width", ({ width }) => `${width}px`)
-            .style("height", ({ height }) => `${height}px`)
-            .html(function (d, i, arr) {
-                if (d.data._pagingButton) {
-                    return `<div class="paging-button-wrapper"><div style="pointer-events:none">${attrs.pagingButton(d, i, arr, attrs)}</div></div>`;
-                }
-                return attrs.nodeContent.bind(this)(d, i, arr, attrs)
-            })
+        DOMUtils.restyleForeignObjectElements(attrs.svg, attrs);
     }
 
     // Toggle children on click.
@@ -1141,10 +1108,7 @@ export class OrgChart {
         const attrs = this.getChartState();
         const { root } = attrs;
         let descendants = nodes ? nodes : root.descendants();
-        const minX = d3.min(descendants, d => d.x + attrs.layoutBindings[attrs.layout].nodeLeftX(d))
-        const maxX = d3.max(descendants, d => d.x + attrs.layoutBindings[attrs.layout].nodeRightX(d))
-        const minY = d3.min(descendants, d => d.y + attrs.layoutBindings[attrs.layout].nodeTopY(d))
-        const maxY = d3.max(descendants, d => d.y + attrs.layoutBindings[attrs.layout].nodeBottomY(d))
+        const { minX, maxX, minY, maxY } = MathUtils.calculateBounds(descendants, attrs.layoutBindings, attrs.layout);
 
         this.zoomTreeBounds({
             params: { animate: animate, scale, onCompleted },
@@ -1291,17 +1255,7 @@ export class OrgChart {
     }
 
     toDataURL(url, callback) {
-        var xhr = new XMLHttpRequest();
-        xhr.onload = function () {
-            var reader = new FileReader();
-            reader.onloadend = function () {
-                callback(reader.result);
-            }
-            reader.readAsDataURL(xhr.response);
-        };
-        xhr.open('GET', url);
-        xhr.responseType = 'blob';
-        xhr.send();
+        ExportUtils.toDataURL(url, callback);
     }
 
     exportImg({ full = false, scale = 3, onLoad = d => d, save = true, backgroundColor = "#FAFAFA" } = {}) {
@@ -1380,48 +1334,16 @@ export class OrgChart {
         // Retrieve svg node
         const svgNode = node;
 
-        function saveAs(uri, filename) {
-            // create link
-            var link = document.createElement('a');
-            if (typeof link.download === 'string') {
-                document.body.appendChild(link); // Firefox requires the link to be in the body
-                link.download = filename;
-                link.href = uri;
-                link.click();
-                document.body.removeChild(link); // remove the link when done
-            } else {
-                location.replace(uri);
-            }
-        }
-        // This function serializes SVG and sets all necessary attributes
-        function serializeString(svg) {
-            const xmlns = 'http://www.w3.org/2000/xmlns/';
-            const xlinkns = 'http://www.w3.org/1999/xlink';
-            const svgns = 'http://www.w3.org/2000/svg';
-            svg = svg.cloneNode(true);
-            const fragment = window.location.href + '#';
-            const walker = document.createTreeWalker(svg, NodeFilter.SHOW_ELEMENT, null, false);
-            while (walker.nextNode()) {
-                for (const attr of walker.currentNode.attributes) {
-                    if (attr.value.includes(fragment)) {
-                        attr.value = attr.value.replace(fragment, '#');
-                    }
-                }
-            }
-            svg.setAttributeNS(xmlns, 'xmlns', svgns);
-            svg.setAttributeNS(xmlns, 'xmlns:xlink', xlinkns);
-            const serializer = new XMLSerializer();
-            const string = serializer.serializeToString(svg);
-            return string;
-        }
+
+
 
         if (isSvg) {
-            let source = serializeString(svgNode);
+            let source = ExportUtils.serializeString(svgNode);
             //add xml declaration
             source = '<?xml version="1.0" standalone="no"?>\r\n' + source;
             //convert svg source to URI data scheme.
             var url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
-            saveAs(url, imageName + ".svg");
+            ExportUtils.saveAs(url, imageName + ".svg");
             onAlreadySerialized()
             return;
         }
@@ -1448,12 +1370,12 @@ export class OrgChart {
             }
             if (save) {
                 // Invoke saving function
-                saveAs(dt, imageName + '.png');
+                ExportUtils.saveAs(dt, imageName + '.png');
             }
 
         };
 
-        var url = 'data:image/svg+xml; charset=utf8, ' + encodeURIComponent(serializeString(svgNode));
+        var url = 'data:image/svg+xml; charset=utf8, ' + encodeURIComponent(ExportUtils.serializeString(svgNode));
 
         onAlreadySerialized()
 
@@ -1469,9 +1391,7 @@ export class OrgChart {
         defaultFont = "Helvetice",
         ctx
     } = {}) {
-        ctx.font = `${fontWeight || ''} ${fontSize}px ${defaultFont} `
-        const measurement = ctx.measureText(text);
-        return measurement.width;
+        return MathUtils.getTextWidth(text, { ctx, fontSize, defaultFont });
     }
 
     // Clear after moving off from the page
