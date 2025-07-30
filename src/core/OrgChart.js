@@ -126,6 +126,9 @@ export class OrgChart {
     };
     this.state.updateState({ calc });
 
+    // Capture first draw state before it's changed
+    const isFirstDraw = attrs.firstDraw;
+    
     // Initialize SVG if first draw
     if (attrs.firstDraw) {
       this.zoomManager.initializeZoom();
@@ -142,6 +145,14 @@ export class OrgChart {
     
     // Display tree contents
     this.update(attrs.root);
+    
+    // Auto-center chart on initial render to ensure optimal viewport positioning
+    if (isFirstDraw && attrs.data && attrs.data.length > 0) {
+      this.zoomManager.fit({
+        animate: false,
+        scale: true
+      });
+    }
     
     return this;
   }
