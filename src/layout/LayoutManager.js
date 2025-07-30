@@ -68,11 +68,14 @@ export class LayoutManager {
     Object.keys(this.layoutBindings.getAllBindings()).forEach(layout => {
       attrs.layoutBindings[layout] = { ...this.layoutBindings.getBinding(layout) };
       
+      // Get chart instance from state
+      const chartInstance = attrs.chartInstance;
+      
       // Bind diagonal functions to the chart instance context
       if (layout === 'left' || layout === 'right') {
-        attrs.layoutBindings[layout].diagonal = attrs.hdiagonal.bind(this.state);
+        attrs.layoutBindings[layout].diagonal = chartInstance.hdiagonal.bind(chartInstance);
       } else {
-        attrs.layoutBindings[layout].diagonal = attrs.diagonal.bind(this.state);
+        attrs.layoutBindings[layout].diagonal = chartInstance.diagonal.bind(chartInstance);
       }
     });
   }

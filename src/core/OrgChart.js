@@ -68,6 +68,11 @@ export class OrgChart {
     
     // Create getter/setter methods for all configuration properties
     Object.keys(attrs).forEach((key) => {
+      // Skip diagonal functions - they have their own methods
+      if (key === 'diagonal' || key === 'hdiagonal') {
+        return;
+      }
+      
       this[key] = function(value) {
         if (!arguments.length) return this.state.getState()[key];
         this.state.updateState({ [key]: value });
@@ -349,12 +354,12 @@ export class OrgChart {
   // Diagonal generation methods
   hdiagonal(s, t, m, offsets) {
     const state = this.state.getState();
-    return state.hdiagonal(s, t, m, offsets);
+    return state.hdiagonal.call(this, s, t, m, offsets);
   }
 
   diagonal(s, t, m, offsets) {
     const state = this.state.getState();
-    return state.diagonal(s, t, m, offsets);
+    return state.diagonal.call(this, s, t, m, offsets);
   }
 
   // Public API methods that delegate to modules

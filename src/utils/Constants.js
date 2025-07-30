@@ -127,7 +127,7 @@ export const DEFAULT_CONFIG = {
     }
   },
   linkGroupArc: d3.linkHorizontal().x(d => d.x).y(d => d.y),
-  hdiagonal: function (s, t, m) {
+  hdiagonal: function (s, t, m, offsets = { sy: 0 }) {
     const x = s.x;
     const y = s.y;
     const ex = t.x;

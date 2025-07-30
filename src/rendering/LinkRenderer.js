@@ -35,14 +35,22 @@ export class LinkRenderer {
       .attr("stroke", "#E4E2E9")
       .attr("stroke-width", 1);
 
-    // Handle Edge browser display issues
+    // Handle Edge browser display issues - only hide if explicitly needed
     if (DOMUtils.isEdge()) {
       linkUpdate.style('display', d => {
-        return d.data._upToTheRootHighlighted ? 'initial' : 'none';
+        // Only hide if node is collapsed and not highlighted
+        if (d.parent && d.parent.data._collapsed && !d.data._upToTheRootHighlighted) {
+          return 'none';
+        }
+        return 'initial';
       });
     } else {
       linkUpdate.attr('display', d => {
-        return d.data._upToTheRootHighlighted ? 'initial' : 'none';
+        // Only hide if node is collapsed and not highlighted
+        if (d.parent && d.parent.data._collapsed && !d.data._upToTheRootHighlighted) {
+          return 'none';
+        }
+        return 'initial';
       });
     }
 

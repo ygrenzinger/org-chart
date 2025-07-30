@@ -11,13 +11,26 @@ export class ChartState {
   }
 
   setupGettersSetters() {
+    // Preserve original diagonal functions before setting up getters/setters
+    const originalDiagonal = this.attrs.diagonal;
+    const originalHdiagonal = this.attrs.hdiagonal;
+    
     Object.keys(this.attrs).forEach((key) => {
+      // Skip diagonal functions - they should remain as functions, not getters/setters
+      if (key === 'diagonal' || key === 'hdiagonal') {
+        return;
+      }
+      
       this[key] = (value) => {
         if (!arguments.length) return this.attrs[key];
         this.attrs[key] = value;
         return this;
       };
     });
+    
+    // Restore original diagonal functions
+    this.attrs.diagonal = originalDiagonal;
+    this.attrs.hdiagonal = originalHdiagonal;
   }
 
   getState() {
