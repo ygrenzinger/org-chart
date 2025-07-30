@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
-import { OrgChart } from '../src/d3-org-chart.js'
+import { OrgChart } from '../src/index.js'
 import { mockHierarchicalData } from './fixtures/mockData.js'
 
 describe('render() method', () => {

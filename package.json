@@ -17,7 +17,7 @@
   "unpkg": "build/d3-org-chart.min.js",
   "exports": {
     "umd": "./build/d3-org-chart.min.js",
-    "default": "./src/d3-org-chart.js"
+    "default": "./src/index.js"
   },
   "jsnext:main": "index",
   "bugs": {

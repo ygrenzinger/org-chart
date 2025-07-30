@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { OrgChart } from '../src/d3-org-chart.js'
+import { OrgChart } from '../src/index.js'
 
 describe('OrgChart zoomed function', () => {
   let chart

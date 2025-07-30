@@ -3,7 +3,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   build: {
     lib: {
-      entry: "src/d3-org-chart.js",
+      entry: "src/index.js",
       name: "OrgChart",
       fileName: "d3-org-chart",
       formats: ["es"],

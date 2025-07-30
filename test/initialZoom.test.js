@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { OrgChart } from '../src/d3-org-chart.js'
+import { OrgChart } from '../src/index.js'
 
 describe('initialZoom() method', () => {
   test('should set initial zoom level', () => {
