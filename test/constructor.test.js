@@ -8,6 +8,20 @@ describe('OrgChart Constructor', () => {
     expect(chart.getChartState()).toBeDefined();
   });
 
+  test('should create chart with modular architecture', () => {
+    const chart = new OrgChart();
+    
+    // Test that internal modules are initialized
+    expect(chart.state).toBeTruthy();
+    expect(chart.dataProcessor).toBeTruthy();
+    expect(chart.layoutManager).toBeTruthy();
+    expect(chart.renderer).toBeTruthy();
+    
+    // Test that public API is preserved
+    expect(typeof chart.render).toBe('function');
+    expect(typeof chart.data).toBe('function');
+  });
+
   test('should initialize all default properties', () => {
     const chart = new OrgChart();
     const state = chart.getChartState();

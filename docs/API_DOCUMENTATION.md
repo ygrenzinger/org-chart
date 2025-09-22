@@ -5,13 +5,14 @@ This document provides comprehensive documentation for all public functions and 
 ## Table of Contents
 
 1. [Constructor](#constructor)
-2. [Core Methods](#core-methods)
-3. [Configuration Methods (Getter/Setter)](#configuration-methods-gettersetter)
-4. [Event Handling](#event-handling)
-5. [Data Management](#data-management)
-6. [Layout and Rendering](#layout-and-rendering)
-7. [User Interaction](#user-interaction)
-8. [Export and Utilities](#export-and-utilities)
+2. [Modular Architecture](#modular-architecture)
+3. [Core Methods](#core-methods)
+4. [Configuration Methods (Getter/Setter)](#configuration-methods-gettersetter)
+5. [Event Handling](#event-handling)
+6. [Data Management](#data-management)
+7. [Layout and Rendering](#layout-and-rendering)
+8. [User Interaction](#user-interaction)
+9. [Export and Utilities](#export-and-utilities)
 
 ---
 
@@ -26,6 +27,59 @@ Creates a new instance of the OrgChart class.
 **Example:**
 ```javascript
 const chart = new OrgChart();
+```
+
+---
+
+## Modular Architecture
+
+The d3-org-chart library now uses a modular architecture for better maintainability and extensibility. While the public API remains unchanged, the internal structure has been reorganized into focused modules:
+
+### Core Modules
+- **ChartState**: Manages configuration and state
+- **OrgChart**: Main orchestrator class
+
+### Data Management
+- **DataProcessor**: Handles data transformation and hierarchy creation
+- **NodeManager**: Manages node operations (add, remove, update)
+
+### Layout Management
+- **LayoutManager**: Coordinates layout operations
+- **LayoutBindings**: Layout-specific positioning functions
+- **CompactLayout**: Compact layout calculations
+
+### Rendering
+- **Renderer**: Main rendering orchestrator
+- **NodeRenderer**: Node rendering logic
+- **LinkRenderer**: Link rendering logic
+- **ConnectionRenderer**: Connection rendering logic
+
+### Interaction
+- **ZoomManager**: Zoom and pan functionality
+- **NavigationManager**: Node navigation (expand/collapse)
+- **EventManager**: Event handling
+- **FullscreenManager**: Fullscreen functionality
+
+### Export
+- **ExportManager**: High-level export interface
+- **ImageExporter**: PNG/SVG export functionality
+- **PrintManager**: Print functionality
+
+### Advanced Usage
+
+For advanced use cases, you can import and use individual modules:
+
+```javascript
+import { 
+  OrgChart, 
+  DataProcessor, 
+  LayoutManager, 
+  ExportManager 
+} from 'd3-org-chart';
+
+// Use individual modules for custom implementations
+const dataProcessor = new DataProcessor(d => d.id, d => d.parentId);
+const exportManager = new ExportManager(chartState);
 ```
 
 ---

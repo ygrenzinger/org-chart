@@ -1,8 +1,24 @@
 {
   "name": "d3-org-chart",
-  "version": "3.1.1",
-  "module": "index",
-  "description": "Highly customizable org chart, created with d3",
+  "version": "3.0.0",
+  "description": "Highly customizable org chart built with d3.js",
+  "main": "dist/d3-org-chart.js",
+  "module": "src/index.js",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "require": "./dist/d3-org-chart.cjs"
+    },
+    "./modules/*": "./src/*/index.js"
+  },
+  "files": [
+    "src/",
+    "dist/",
+    "docs/",
+    "README.md",
+    "LICENSE.md"
+  ],
   "keywords": [
     "d3",
     "d3-module",
@@ -12,14 +28,6 @@
     "employee"
   ],
   "license": "MIT",
-  "main": "build/d3-org-chart.min.js",
-  "jsdelivr": "build/d3-org-chart.min.js",
-  "unpkg": "build/d3-org-chart.min.js",
-  "exports": {
-    "umd": "./build/d3-org-chart.min.js",
-    "default": "./src/index.js"
-  },
-  "jsnext:main": "index",
   "bugs": {
     "url": "https://github.com/bumbeishvili/d3-organization-chart/issues"
   },
@@ -29,29 +37,27 @@
     "url": "https://github.com/bumbeishvili/d3-organization-chart.git"
   },
   "scripts": {
-    "start": "nodemon ",
-    "_pretest": "rm -rf build && mkdir build && rollup -c --banner \"$(preamble)\"",
-    "_test": "tape 'test/**/*-test.js'",
-    "_prepublish": "npm run test && uglifyjs build/d3-org-chart.js -c -m -o build/d3-org-chart.min.js",
-    "_postpublish": "zip -j build/d3-org-chart.zip -- LICENSE README.md build/d3-org-chart.js build/d3-org-chart.min.js",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "dev": "vite serve sandbox",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
-    "prepublish": "npm run test && uglifyjs build/d3-org-chart.js -c -m -o build/d3-org-chart.min.js",
-    "postpublish": "zip -j build/d3-org-chart.zip -- LICENSE README.md build/d3-org-chart.js build/d3-org-chart.min.js",
-    "dev": "vite",
-    "build": "vite build",
+    "lint": "eslint src/ test/",
+    "lint:fix": "eslint src/ test/ --fix",
+    "docs:build": "typedoc src/index.js",
+    "validate": "npm run lint && npm run test && npm run build",
     "preview": "vite preview"
   },
   "devDependencies": {
     "@babel/core": "^7.7.7",
     "@babel/preset-env": "^7.7.7",
+    "@eslint/js": "^9.32.0",
     "@playwright/test": "^1.54.1",
     "@testing-library/dom": "^10.4.0",
     "@vitest/browser": "^3.2.4",
@@ -59,11 +65,13 @@
     "@vitest/ui": "^3.2.4",
     "babel": "^6.23.0",
     "canvas": "^3.1.2",
+    "eslint": "^9.32.0",
     "jsdom": "^26.1.0",
     "package-preamble": "0.1",
     "playwright": "^1.54.1",
     "rollup": "0.27",
     "tape": "4",
+    "terser": "^5.43.1",
     "uglify-js": "3",
     "vite": "^6.3.5",
     "vitest": "^3.2.4",

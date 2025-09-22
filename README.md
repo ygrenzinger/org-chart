@@ -334,6 +334,23 @@ chart.data(updatedData).render()
 
 Have you impressively customized an organizational chart and want to be featured on this page? Just email me at me@davidb.dev and include screenshot of your org chart and it will be featured on this page (dimensions of image should be 500 X 500).
 
+## Architecture
+
+This library uses a modular architecture that separates concerns into focused modules:
+
+- **Maintainable**: Each module has a single responsibility
+- **Testable**: Modules can be unit tested independently  
+- **Extensible**: Easy to extend or replace individual modules
+- **Backward Compatible**: Public API remains unchanged
+
+The modular design makes it easier to:
+- Add new layout types
+- Implement custom rendering logic
+- Extend export functionality
+- Add new interaction patterns
+
+For most use cases, you'll only need to import the main `OrgChart` class. Advanced users can import individual modules for custom implementations.
+
 ## Jump To Examples
 
 |                                                                                                                                                                                                                                                                                                   |                                                                                                                                                                                                                                                          |

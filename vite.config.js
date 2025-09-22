@@ -1,25 +1,37 @@
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
   build: {
     lib: {
-      entry: "src/index.js",
-      name: "OrgChart",
-      fileName: "d3-org-chart",
-      formats: ["es"],
+      entry: resolve(__dirname, 'src/index.js'),
+      name: 'OrgChart',
+      fileName: (format) => `d3-org-chart.${format === 'es' ? 'js' : format}`
     },
-    minify: true,
     rollupOptions: {
-      // Don't externalize dependencies to include them in the bundle
-      external: [],
+      external: ['d3'],
       output: {
-        // Configure global variables for when the script is included via <script> tag
         globals: {
-          // No need for globals as we're bundling everything
-        },
-        // Make the UMD build have a .min.js extension
-        entryFileNames: "d3-org-chart.min.js",
-      },
+          'd3': 'd3'
+        }
+      }
     },
+    sourcemap: true,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    }
   },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src')
+    }
+  },
+  server: {
+    port: 3000,
+    open: '/sandbox/index.html'
+  }
 });
